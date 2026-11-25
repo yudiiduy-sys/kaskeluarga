@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KasKeluarga - Pencatat Keuangan Rumah Tangga</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom scrollbar untuk tampilan mobile yang bersih */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom, 1rem);
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up {
+            animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-900">
+
+    <!-- Container Utama Mobile-First (Max-width nyaman di HP maupun Desktop) -->
+    <div class="max-w-lg mx-auto min-h-screen bg-slate-50 shadow-xl shadow-slate-200/60 flex flex-col relative pb-24">
+
+        <!-- Toast Notification (Pengganti alert()) -->
+        <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden max-w-[90vw] w-max transition-all duration-300">
+            <div id="toast-content" class="flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-lg text-sm font-medium text-white bg-slate-900">
+                <i id="toast-icon" data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                <span id="toast-message">Berhasil disimpan</span>
+            </div>
+        </div>
+
+        <!-- Header & Kartu Saldo Utama -->
+        <header class="bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 text-white pt-5 pb-7 px-5 rounded-b-[2rem] shadow-md">
+            <!-- Top Bar -->
+            <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20">
+                        <i data-lucide="wallet" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-base leading-tight tracking-tight">KasKeluarga</h1>
+                        <div class="flex items-center gap-1.5 text-[11px] text-emerald-100">
+                            <span id="sync-dot" class="w-2 h-2 rounded-full bg-amber-300 inline-block"></span>
+                            <span id="sync-status-text">Mode Lokal (Offline)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Bulan & Tahun + Tombol Pengaturan Sheets -->
+                <div class="flex items-center gap-2">
+                    <input type="month" id="month-filter" aria-label="Pilih Bulan"
+                        class="bg-white/15 hover:bg-white/25 text-white text-xs font-semibold px-2.5 py-2 rounded-xl border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer">
+                    <button onclick="openSettingsModal()" title="Hubungkan Google Sheets"
+                        class="p-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 transition active:scale-95 relative">
+                        <i data-lucide="sheet" class="w-4 h-4 text-white"></i>
+                        <span id="badge-connected" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-lime-400 rounded-full border-2 border-emerald-700"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sisa Saldo Utama -->
+            <div class="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-4 mb-3">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-emerald-100">Sisa Saldo Bulan Ini</span>
+                    <span id="active-user-badge" class="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-medium">Pencatat: Istri</span>
+                </div>
+                <div id="display-balance" class="text-2xl sm:text-3xl font-extrabold tracking-tight">Rp 0</div>
+            </div>
+
+            <!-- Pemasukan & Pengeluaran Ringkas -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl p-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-400/20 flex items-center justify-center shrink-0">
+                        <i data-lucide="arrow-down-left" class="w-5 h-5 text-emerald-200"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[11px] text-emerald-100">Pemasukan</p>
+                        <p id="display-income" class="text-sm font-bold truncate">Rp 0</p>
+                    </div>
+                </div>
+                <div class="bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl p-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-rose-400/25 flex items-center justify-center shrink-0">
+                        <i data-lucide="arrow-up-right" class="w-5 h-5 text-rose-200"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[11px] text-emerald-100">Pengeluaran</p>
+                        <p id="display-expense" class="text-sm font-bold truncate">Rp 0</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Konten Utama per Tab -->
+        <main class="flex-1 px-4 pt-5 space-y-5">
+
+            <!-- TAB 1: INPUT TRANSAKSI CEPAT -->
+            <section id="view-input" class="space-y-4">
+                <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                            <i data-lucide="plus-circle" class="w-5 h-5 text-emerald-600"></i>
+                            Catat Transaksi Baru
+                        </h2>
+                        <span class="text-[11px] text-slate-400 font-medium">Auto-Sync Sheets</span>
+                    </div>
+
+                    <form id="transaction-form" class="space-y-4">
+                        <!-- Toggle Jenis Transaksi -->
+                        <div class="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl">
+                            <button type="button" id="btn-type-expense" onclick="setTransactionType('Pengeluaran')"
+                                class="py-2.5 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all bg-rose-600 text-white shadow-sm">
+                                <i data-lucide="minus-circle" class="w-4 h-4"></i>
+                                Pengeluaran
+                            </button>
+                            <button type="button" id="btn-type-income" onclick="setTransactionType('Pemasukan')"
+                                class="py-2.5 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all text-slate-600 hover:text-slate-900">
+                                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                                Pemasukan
+                            </button>
+                        </div>
+
+                        <!-- Nominal Input + Tombol Cepat -->
+                        <div>
+                            <label for="input-amount" class="block text-xs font-semibold text-slate-600 mb-1.5">Nominal (Rp)</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-base">Rp</span>
+                                <input type="text" id="input-amount" inputmode="numeric" required placeholder="0"
+                                    class="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xl font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+                            </div>
+                            <!-- Tombol Nominal Cepat -->
+                            <div class="grid grid-cols-4 gap-2 mt-2">
+                                <button type="button" onclick="addQuickAmount(10000)" class="py-1.5 px-2 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 active:scale-95 text-slate-600 rounded-xl text-xs font-semibold transition">+10rb</button>
+                                <button type="button" onclick="addQuickAmount(20000)" class="py-1.5 px-2 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 active:scale-95 text-slate-600 rounded-xl text-xs font-semibold transition">+20rb</button>
+                                <button type="button" onclick="addQuickAmount(50000)" class="py-1.5 px-2 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 active:scale-95 text-slate-600 rounded-xl text-xs font-semibold transition">+50rb</button>
+                                <button type="button" onclick="addQuickAmount(100000)" class="py-1.5 px-2 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 active:scale-95 text-slate-600 rounded-xl text-xs font-semibold transition">+100rb</button>
+                            </div>
+                        </div>
+
+                        <!-- Kategori + Tambah Kategori Kustom -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label for="input-category" class="block text-xs font-semibold text-slate-600">Kategori</label>
+                                <button type="button" onclick="toggleCustomCategory()" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Kategori Baru
+                                </button>
+                            </div>
+                            <select id="input-category" required
+                                class="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+                            </select>
+
+                            <!-- Form Tambah Kategori Kustom (Tersembunyi secara default) -->
+                            <div id="custom-category-box" class="hidden mt-2 p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
+                                <p class="text-[11px] font-semibold text-emerald-800">Tambah Kategori Baru (<span id="custom-cat-type-label">Pengeluaran</span>)</p>
+                                <div class="flex gap-2">
+                                    <input type="text" id="new-category-name" placeholder="Nama kategori baru..."
+                                        class="flex-1 px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    <button type="button" onclick="saveCustomCategory()"
+                                        class="px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition">Tambah</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Keterangan -->
+                        <div>
+                            <label for="input-note" class="block text-xs font-semibold text-slate-600 mb-1.5">Keterangan</label>
+                            <input type="text" id="input-note" required placeholder="Contoh: Beli sayur & lauk, Token listrik..."
+                                class="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+                        </div>
+
+                        <!-- Tanggal & Metode Bayar -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="input-date" class="block text-xs font-semibold text-slate-600 mb-1.5">Tanggal</label>
+                                <input type="date" id="input-date" required
+                                    class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+                            </div>
+                            <div>
+                                <label for="input-method" class="block text-xs font-semibold text-slate-600 mb-1.5">Metode Bayar</label>
+                                <select id="input-method"
+                                    class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+                                    <option value="Tunai">Tunai</option>
+                                    <option value="Transfer Bank">Transfer Bank</option>
+                                    <option value="QRIS / E-Wallet">QRIS / E-Wallet</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Dicatat Oleh -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Dicatat Oleh</label>
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="recorded_by" value="Istri" class="peer sr-only" checked onchange="saveDefaultUser('Istri')">
+                                    <div class="py-2.5 px-3 rounded-2xl border border-slate-200 bg-slate-50 text-center text-xs font-semibold text-slate-600 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 transition">
+                                        👩 Istri
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="recorded_by" value="Suami" class="peer sr-only" onchange="saveDefaultUser('Suami')">
+                                    <div class="py-2.5 px-3 rounded-2xl border border-slate-200 bg-slate-50 text-center text-xs font-semibold text-slate-600 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 transition">
+                                        👨 Suami
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Tombol Submit -->
+                        <button type="submit" id="btn-submit"
+                            class="w-full py-3.5 px-5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm rounded-2xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            <span>Simpan Transaksi</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Preview 5 Transaksi Terakhir Bulan Ini dengan Tombol Hapus -->
+                <div class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">5 Transaksi Terbaru</h3>
+                        <button onclick="switchTab('history')" class="text-xs font-semibold text-emerald-600 hover:underline">Lihat Semua</button>
+                    </div>
+                    <div id="recent-transactions-mini" class="space-y-2.5"></div>
+                </div>
+            </section>
+
+            <!-- TAB 2: RIWAYAT TRANSAKSI & EXPORT CSV -->
+            <section id="view-history" class="hidden space-y-4">
+                <div class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                            <i data-lucide="list-ordered" class="w-5 h-5 text-emerald-600"></i>
+                            Riwayat Transaksi
+                        </h2>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="pullFromGoogleSheets()" id="btn-pull-sheets" title="Tarik data dari Google Sheets"
+                                class="hidden px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-semibold flex items-center gap-1 transition">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sync
+                            </button>
+                            <button onclick="exportToCSV()"
+                                class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Pencarian & Filter -->
+                    <div class="space-y-2">
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="search-history" oninput="renderHistory()" placeholder="Cari keterangan, kategori, atau pencatat..."
+                                class="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="filter-type" onchange="renderHistory()"
+                                class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none">
+                                <option value="ALL">Semua Jenis</option>
+                                <option value="Pemasukan">Pemasukan</option>
+                                <option value="Pengeluaran">Pengeluaran</option>
+                            </select>
+                            <select id="filter-category" onchange="renderHistory()"
+                                class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none">
+                                <option value="ALL">Semua Kategori</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List Transaksi -->
+                <div id="history-list" class="space-y-2.5"></div>
+            </section>
+
+            <!-- TAB 3: ANGGARAN VS REALISASI (DASHBOARD) -->
+            <section id="view-budget" class="hidden space-y-4">
+                <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-1">
+                        <h2 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-5 h-5 text-emerald-600"></i>
+                            Anggaran vs Realisasi
+                        </h2>
+                        <span class="text-[11px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium">Klik pagu untuk edit</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Pantau batas belanja bulanan per kategori agar keuangan keluarga tetap terkendali.</p>
+
+                    <!-- Total Ringkasan Anggaran -->
+                    <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 mb-4">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-500 font-medium">Total Terpakai vs Total Pagu</span>
+                            <span id="total-budget-ratio" class="font-bold text-slate-800">0%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden mb-2">
+                            <div id="total-budget-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-[11px] text-slate-500">
+                            <span>Terpakai: <strong id="total-budget-spent" class="text-slate-700">Rp 0</strong></span>
+                            <span>Pagu: <strong id="total-budget-limit" class="text-slate-700">Rp 0</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Daftar Progress Bar per Kategori -->
+                    <div id="budget-list" class="space-y-4"></div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Navigasi Bawah (Bottom Navigation Bar) -->
+        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-4 py-2 safe-bottom z-30">
+            <div class="grid grid-cols-3 gap-1">
+                <button onclick="switchTab('input')" id="nav-input"
+                    class="flex flex-col items-center justify-center py-1.5 rounded-2xl text-emerald-600 bg-emerald-50/80 font-bold transition">
+                    <i data-lucide="plus-square" class="w-5 h-5 mb-0.5"></i>
+                    <span class="text-[11px]">Input</span>
+                </button>
+                <button onclick="switchTab('history')" id="nav-history"
+                    class="flex flex-col items-center justify-center py-1.5 rounded-2xl text-slate-500 hover:text-slate-800 font-medium transition">
+                    <i data-lucide="receipt" class="w-5 h-5 mb-0.5"></i>
+                    <span class="text-[11px]">Riwayat</span>
+                </button>
+                <button onclick="switchTab('budget')" id="nav-budget"
+                    class="flex flex-col items-center justify-center py-1.5 rounded-2xl text-slate-500 hover:text-slate-800 font-medium transition">
+                    <i data-lucide="pie-chart" class="w-5 h-5 mb-0.5"></i>
+                    <span class="text-[11px]">Anggaran</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- MODAL INTEGRASI GOOGLE SHEETS (GOOGLE APPS SCRIPT) -->
+        <div id="settings-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col shadow-2xl animate-slide-up">
+                <!-- Modal Header -->
+                <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                            <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-sm">Integrasi Google Sheets</h3>
+                            <p class="text-[11px] text-slate-500">Kirim otomatis setiap transaksi ke tab Transaksi</p>
+                        </div>
+                    </div>
+                    <button onclick="closeSettingsModal()" class="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="p-5 overflow-y-auto space-y-5 text-xs text-slate-600">
+                    <!-- Input Web App URL -->
+                    <div class="space-y-2">
+                        <label for="gas-url-input" class="block font-bold text-slate-800">URL Web App Google Apps Script</label>
+                        <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/...../exec"
+                            class="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="saveGasUrl()"
+                                class="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition">
+                                Simpan & Hubungkan
+                            </button>
+                            <button type="button" onclick="clearGasUrl()"
+                                class="py-2.5 px-3 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-semibold rounded-xl transition">
+                                Putuskan
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Panduan 3 Langkah -->
+                    <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-2.5">
+                        <h4 class="font-bold text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+                            Cara Menghubungkan ke File 'Catatan Keuangan Rumah Tangga (Siap AppSheet)':
+                        </h4>
+                        <ol class="list-decimal list-inside space-y-1.5 text-slate-600 leading-relaxed">
+                            <li>Buka file Google Sheets <strong>Catatan Keuangan Rumah Tangga (Siap AppSheet)</strong>, lalu klik menu <strong>Extensions &gt; Apps Script</strong>.</li>
+                            <li>Hapus semua kode yang ada, lalu <strong>Salin &amp; Tempel (Paste)</strong> kode di bawah ini dan klik ikon <strong>Save</strong>.</li>
+                            <li>Klik tombol biru <strong>Deploy &gt; New deployment</strong> &gt; pilih tipe <strong>Web app</strong> &gt; atur <em>Who has access</em> menjadi <strong>Anyone</strong> &gt; klik <strong>Deploy</strong>, lalu salin URL-nya ke kotak di atas.</li>
+                        </ol>
+                    </div>
+
+                    <!-- Kode Apps Script Siap Salin -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-800">Kode Google Apps Script (Backend)</span>
+                            <button type="button" onclick="copyAppsScriptCode()"
+                                class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold flex items-center gap-1.5 transition active:scale-95">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                Salin Kode Apps Script
+                            </button>
+                        </div>
+                        <textarea id="apps-script-code" readonly rows="10"
+                            class="w-full p-3 bg-slate-900 text-emerald-300 font-mono text-[11px] rounded-2xl focus:outline-none leading-relaxed">function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Transaksi');
+  if (!sheet) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Sheet Transaksi tidak ditemukan' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var rows = [];
+  for (var i = 1; i < data.length; i++) {
+    if (!data[i][0] && !data[i][1]) continue;
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      obj[headers[j]] = data[i][j];
+    }
+    rows.push(obj);
+  }
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', data: rows }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Transaksi');
+    var payload = JSON.parse(e.postData.contents);
+
+    if (payload.action === 'delete' && payload.ID_Transaksi) {
+      var data = sheet.getDataRange().getValues();
+      for (var i = data.length - 1; i >= 1; i--) {
+        if (String(data[i][0]) === String(payload.ID_Transaksi)) {
+          sheet.deleteRow(i + 1);
+          break;
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: 'deleted' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    sheet.appendRow([
+      payload.ID_Transaksi,
+      payload.Tanggal,
+      payload.Jenis,
+      payload.Kategori,
+      payload.Keterangan,
+      Number(payload.Nominal),
+      payload.Metode_Bayar,
+      payload.Dicatat_Oleh
+    ]);
+
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL EDIT PAGU ANGGARAN KATEGORI -->
+        <div id="budget-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-900 text-sm">Atur Pagu Anggaran Bulanan</h3>
+                    <button onclick="closeBudgetModal()" class="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <p id="edit-budget-cat-name" class="text-xs font-bold text-emerald-700 mb-2">Kategori</p>
+                    <label class="block text-[11px] font-semibold text-slate-500 mb-1">Batas Anggaran per Bulan (Rp)</label>
+                    <input type="text" id="edit-budget-amount" inputmode="numeric"
+                        class="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-lg font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeBudgetModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-semibold text-xs rounded-xl">Batal</button>
+                    <button type="button" onclick="saveBudgetLimit()" class="flex-1 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl">Simpan Pagu</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. INISIALISASI DATA & STATE APLIKASI
+        // ==========================================
+        const STORAGE_KEYS = {
+            TRANSACTIONS: 'kaskeluarga_transactions_v2',
+            CATEGORIES: 'kaskeluarga_categories_v2',
+            BUDGETS: 'kaskeluarga_budgets_v2',
+            GAS_URL: 'kaskeluarga_gas_url_v1',
+            DEFAULT_USER: 'kaskeluarga_default_user_v1'
+        };
+
+        const DEFAULT_CATEGORIES = {
+            Pengeluaran: [
+                'Belanja Dapur & Sembako',
+                'Listrik Air & Internet',
+                'Kebutuhan & Pendidikan Anak',
+                'Transportasi & BBM',
+                'Kesehatan & Obat',
+                'Tagihan & Cicilan',
+                'Tabungan & Dana Darurat',
+                'Lain-lain'
+            ],
+            Pemasukan: [
+                'Gaji Bulanan',
+                'Usaha Sampingan / Freelance',
+                'Pemasukan Lainnya'
+            ]
+        };
+
+        const DEFAULT_BUDGETS = {
+            'Belanja Dapur & Sembako': 2500000,
+            'Listrik Air & Internet': 850000,
+            'Kebutuhan & Pendidikan Anak': 1200000,
+            'Transportasi & BBM': 600000,
+            'Kesehatan & Obat': 500000,
+            'Tagihan & Cicilan': 1500000,
+            'Tabungan & Dana Darurat': 1500000,
+            'Lain-lain': 400000
+        };
+
+        let transactions = [];
+        let categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+        let budgets = { ...DEFAULT_BUDGETS };
+        let currentType = 'Pengeluaran';
+        let gasUrl = '';
+        let editingBudgetCategory = '';
+        let pendingDeleteId = null;
+
+        // ==========================================
+        // 2. UTILITAS FORMAT RUPIAH & TANGGAL
+        // ==========================================
+        function formatRupiah(num) {
+            const number = Number(num) || 0;
+            return 'Rp ' + number.toLocaleString('id-ID');
+        }
+
+        function parseRupiahInput(str) {
+            return Number(String(str).replace(/[^0-9]/g, '')) || 0;
+        }
+
+        function formatInputNumber(el) {
+            const raw = parseRupiahInput(el.value);
+            el.value = raw > 0 ? raw.toLocaleString('id-ID') : '';
+        }
+
+        function getTodayISO() {
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            return new Date(now - offset).toISOString().split('T')[0];
+        }
+
+        function getCurrentMonthISO() {
+            return getTodayISO().slice(0, 7);
+        }
+
+        function generateTransactionId(dateStr) {
+            const baseDate = dateStr ? new Date(dateStr) : new Date();
+            const year = baseDate.getFullYear();
+            const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+            const ym = `${year}${month}`;
+            const prefix = `TRX-${ym}-`;
+
+            // Hitung nomor urut berikutnya di bulan yang sama (contoh: TRX-202611-001)
+            const sameMonthCount = transactions.filter(tx => String(tx.ID_Transaksi).startsWith(prefix)).length;
+            const nextSeq = String(sameMonthCount + 1).padStart(3, '0');
+            return `${prefix}${nextSeq}`;
+        }
+
+        function showToast(message, type = 'success') {
+// ... existing code ... -->
+                    // Contoh data awal bulan ini agar tampilan langsung hidup
+                    const today = getTodayISO();
+                    const ym = today.slice(0, 7).replace('-', '');
+                    transactions = [
+                        {
+                            ID_Transaksi: `TRX-${ym}-003`,
+                            Tanggal: today,
+                            Jenis: 'Pengeluaran',
+                            Kategori: 'Listrik Air & Internet',
+                            Keterangan: 'Token listrik prabayar',
+                            Nominal: 200000,
+                            Metode_Bayar: 'QRIS / E-Wallet',
+                            Dicatat_Oleh: 'Suami'
+                        },
+                        {
+                            ID_Transaksi: `TRX-${ym}-002`,
+                            Tanggal: today,
+                            Jenis: 'Pengeluaran',
+                            Kategori: 'Belanja Dapur & Sembako',
+                            Keterangan: 'Belanja sayur, lauk, dan beras mingguan',
+                            Nominal: 245000,
+                            Metode_Bayar: 'Tunai',
+                            Dicatat_Oleh: 'Istri'
+                        },
+                        {
+                            ID_Transaksi: `TRX-${ym}-001`,
+                            Tanggal: today,
+                            Jenis: 'Pemasukan',
+                            Kategori: 'Gaji Bulanan',
+                            Keterangan: 'Gaji bulanan keluarga',
+                            Nominal: 8500000,
+                            Metode_Bayar: 'Transfer Bank',
+                            Dicatat_Oleh: 'Suami'
+                        }
+                    ];
+                    saveTransactions();
+                }
+
+                const savedCats = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+// ... existing code ... -->
+                        return {
+                            ID_Transaksi: String(row.ID_Transaksi || generateTransactionId(tgl)),
+                            Tanggal: tgl || getTodayISO(),
+                            Jenis: String(row.Jenis || 'Pengeluaran'),
+                            Kategori: String(row.Kategori || 'Lain-lain'),
+                            Keterangan: String(row.Keterangan || '-'),
+                            Nominal: Number(row.Nominal) || 0,
+                            Metode_Bayar: String(row.Metode_Bayar || 'Tunai'),
+                            Dicatat_Oleh: String(row.Dicatat_Oleh || 'Istri')
+                        };
+                    });
+
+                    transactions = normalized.reverse();
+// ... existing code ... -->
+            const recordedByEl = document.querySelector('input[name="recorded_by"]:checked');
+            const txDate = document.getElementById('input-date').value || getTodayISO();
+            const newTx = {
+                ID_Transaksi: generateTransactionId(txDate),
+                Tanggal: txDate,
+                Jenis: currentType,
+                Kategori: document.getElementById('input-category').value,
+                Keterangan: document.getElementById('input-note').value.trim(),
+                Nominal: nominal,
+                Metode_Bayar: document.getElementById('input-method').value,
+                Dicatat_Oleh: recordedByEl ? recordedByEl.value : 'Istri'
+            };
+
+            // Simpan langsung ke localStorage
+// ... existing code ... -->
+        function renderRecentMini() {
+            const container = document.getElementById('recent-transactions-mini');
+            const recent = getFilteredTransactionsByMonth().slice(0, 5);
+
+            if (recent.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Belum ada transaksi di bulan ini.</p>`;
+                return;
+            }
+
+            container.innerHTML = recent.map(tx => {
+                const isExpense = tx.Jenis === 'Pengeluaran';
+                const isConfirming = pendingDeleteId === tx.ID_Transaksi;
+                return `
+                    <div class="flex items-center justify-between gap-2.5 py-2 border-b border-slate-50 last:border-0">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${isExpense ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}">
+                                <i data-lucide="${isExpense ? 'arrow-up-right' : 'arrow-down-left'}" class="w-4 h-4"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-slate-800 truncate">${tx.Keterangan}</p>
+                                <p class="text-[10px] text-slate-400 truncate">${tx.Kategori} • ${tx.Tanggal} • ${tx.Dicatat_Oleh}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span class="text-xs font-extrabold ${isExpense ? 'text-rose-600' : 'text-emerald-600'}">
+                                ${isExpense ? '-' : '+'}${formatRupiah(tx.Nominal)}
+                            </span>
+                            ${isConfirming ? `
+                                <div class="flex items-center gap-1">
+                                    <button type="button" onclick="confirmDeleteTransaction('${tx.ID_Transaksi}')"
+                                        class="px-2 py-1 bg-rose-600 text-white rounded-lg text-[10px] font-bold">Hapus</button>
+                                    <button type="button" onclick="cancelDeleteTransaction()"
+                                        class="px-1.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-semibold">Batal</button>
+                                </div>
+                            ` : `
+                                <button type="button" onclick="requestDeleteTransaction('${tx.ID_Transaksi}')" title="Hapus transaksi"
+                                    class="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function renderHistory() {
+// ... existing code ... -->
+        function requestDeleteTransaction(id) {
+            pendingDeleteId = id;
+            renderRecentMini();
+            renderHistory();
+        }
+
+        function cancelDeleteTransaction() {
+            pendingDeleteId = null;
+            renderRecentMini();
+            renderHistory();
+        }
+
+        async function confirmDeleteTransaction(id) {
+// ... existing code ... -->
